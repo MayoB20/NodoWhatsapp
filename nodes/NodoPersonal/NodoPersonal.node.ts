@@ -5,17 +5,17 @@ import {
 	INodeExecutionData,
 } from 'n8n-workflow';
 
-export class NodoPersonal implements INodeType {
+export class ChatNodoWhatsApp implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'Nodo Personal',
-		name: 'nodoPersonal',
-		icon: 'file:nodopersonal.svg',
+		displayName: 'ChatNodoWhatsApp',
+		name: 'ChatNodoWhatsAp',
+		icon: 'file:ChatNodoWhatsApp.svg',
 		group: ['transform'],
 		version: 1,
 		subtitle: '={{$parameter["operation"]}}',
 		description: 'Envía mensajes a través de WhatsApp Business API',
 		defaults: {
-			name: 'Nodo Personal',
+			name: 'ChatNodoWhatsApp',
 			color: '#25D366',
 		},
 		inputs: ['main'],
