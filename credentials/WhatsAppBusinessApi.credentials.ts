@@ -5,7 +5,7 @@ import {
 	ICredentialTestRequest,
 } from 'n8n-workflow';
 
-export class WhatsappMessageApi implements ICredentialType {
+export class WhatsAppBusinessApi implements ICredentialType {
 	name = 'whatsAppBusinessApi';
 	displayName = 'WhatsApp Business API';
 	documentationUrl = 'https://developers.facebook.com/docs/whatsapp';
@@ -56,5 +56,3 @@ export class WhatsappMessageApi implements ICredentialType {
 		},
 	};
 }
-
-export default WhatsappMessageApi;
