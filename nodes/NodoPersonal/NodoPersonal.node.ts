@@ -6,11 +6,11 @@ import {
 } from 'n8n-workflow';
 
 
-export class WhatsappMessage implements INodeType {
+export class nodoPersonalWhatsApp implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'WhatsApp Message',
-		name: 'whatsappMessage',
-		icon: 'file:WhatsappMessage.svg',
+		displayName: 'NodoPersonal WhatsApp',
+		name: 'nodoPersonalWhatsApp',
+		icon: 'file:NodoLogo.svg',
 		group: ['transform'],
 		version: 1,
 		subtitle: '={{$parameter["operation"]}}',

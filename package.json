@@ -1,5 +1,5 @@
 {
-	"name": "n8n-nodes-whatsapp-message",
+	"name": "n8n-nodes-nodopersonal-whatsapp",
 	"version": "0.1.0",
 	"description": "WhatsApp Message node for n8n",
 	"license": "MIT",
