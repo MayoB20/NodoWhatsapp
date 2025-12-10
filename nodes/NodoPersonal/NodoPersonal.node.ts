@@ -5,21 +5,28 @@ import {
 	INodeExecutionData,
 } from 'n8n-workflow';
 
-export class ChatNodoWhatsApp implements INodeType {
+
+export class WhatsappMessage implements INodeType {
 	description: INodeTypeDescription = {
-		displayName: 'ChatNodoWhatsApp',
-		name: 'ChatNodoWhatsAp',
-		icon: 'file:ChatNodoWhatsApp.svg',
+		displayName: 'WhatsApp Message',
+		name: 'whatsappMessage',
+		icon: 'file:WhatsappMessage.svg',
 		group: ['transform'],
 		version: 1,
 		subtitle: '={{$parameter["operation"]}}',
-		description: 'Envía mensajes a través de WhatsApp Business API',
+		description: 'Envía mensajes de texto a través de WhatsApp Business API',
 		defaults: {
-			name: 'ChatNodoWhatsApp',
+			name: 'WhatsApp Message',
 			color: '#25D366',
 		},
 		inputs: ['main'],
 		outputs: ['main'],
+		credentials: [
+			{
+				name: 'whatsAppBusinessApi',
+				required: true,
+			},
+		],
 		properties: [
 			{
 				displayName: 'Operation',
@@ -37,15 +44,6 @@ export class ChatNodoWhatsApp implements INodeType {
 				default: 'sendMessage',
 			},
 			{
-				displayName: 'WhatsApp Business ID',
-				name: 'whatsapp_business_id',
-				type: 'string',
-				default: '',
-				required: true,
-				placeholder: '123456789012345',
-				description: 'El ID de tu cuenta de WhatsApp Business',
-			},
-			{
 				displayName: 'Phone Number ID',
 				name: 'phone_number_id',
 				type: 'string',
@@ -61,19 +59,7 @@ export class ChatNodoWhatsApp implements INodeType {
 				default: '',
 				required: true,
 				placeholder: '+573001234567',
-				description: 'Número de teléfono del destinatario (con código de país)',
-			},
-			{
-				displayName: 'API Token',
-				name: 'api_token',
-				type: 'string',
-				typeOptions: {
-					password: true,
-				},
-				default: '',
-				required: true,
-				placeholder: 'EAAxxxxxxxxxx',
-				description: 'Tu token de acceso de la API de WhatsApp Business',
+				description: 'Número de teléfono del destinatario (con código de país, ej: +573001234567)',
 			},
 			{
 				displayName: 'API Version',
@@ -81,15 +67,15 @@ export class ChatNodoWhatsApp implements INodeType {
 				type: 'options',
 				options: [
 					{
-						name: 'v18.0',
-						value: 'v18.0',
+						name: 'v22.0',
+						value: 'v22.0',
 					},
 					{
-						name: 'v17.0',
-						value: 'v17.0',
+						name: 'v19.0',
+						value: 'v19.0',
 					},
 				],
-				default: 'v18.0',
+				default: 'v22.0',
 				description: 'Versión de la API de WhatsApp Business',
 			},
 			{
@@ -102,7 +88,7 @@ export class ChatNodoWhatsApp implements INodeType {
 				default: 'Hola mundo',
 				required: true,
 				placeholder: 'Escribe tu mensaje aquí...',
-				description: 'El mensaje que se enviará',
+				description: 'El mensaje que se enviará (máximo 4096 caracteres)',
 			},
 			{
 				displayName: 'Require Waiting',
@@ -160,14 +146,42 @@ export class ChatNodoWhatsApp implements INodeType {
 			try {
 				const operation = this.getNodeParameter('operation', i) as string;
 				const phoneNumberId = this.getNodeParameter('phone_number_id', i) as string;
-				const recipientPhone = this.getNodeParameter('recive_phone_number', i) as string;
-				const apiToken = this.getNodeParameter('api_token', i) as string;
+				let recipientPhone = this.getNodeParameter('recive_phone_number', i) as string;
 				const apiVersion = this.getNodeParameter('version_api', i) as string;
 				const requireWaiting = this.getNodeParameter('require_waiting', i) as boolean;
 				const tries = this.getNodeParameter('tries', i) as number;
 				const messageWaitTime = this.getNodeParameter('message_wait_time', i) as number;
 				const mainMessage = this.getNodeParameter('main_message', i) as string;
 
+				// Validaciones
+				if (!mainMessage || mainMessage.trim().length === 0) {
+					throw new Error('El mensaje no puede estar vacío');
+				}
+
+				if (mainMessage.length > 4096) {
+					throw new Error('El mensaje excede el límite de 4096 caracteres');
+				}
+
+				// Normalizar número de teléfono - remover espacios y guiones
+				recipientPhone = recipientPhone.replace(/[\s\-]/g, '');
+
+				// Validar formato del teléfono
+				if (!recipientPhone.startsWith('+')) {
+					throw new Error('El número debe incluir el código de país con + (ej: +573001234567)');
+				}
+
+				if (!/^\+\d{10,15}$/.test(recipientPhone)) {
+					throw new Error('Formato de teléfono inválido. Debe ser +[código país][número] (10-15 dígitos)');
+				}
+
+				const credentials = await this.getCredentials('whatsAppBusinessApi');
+				const apiToken = credentials.accessToken as string;
+
+				if (!apiToken) {
+					throw new Error('Token de acceso no configurado en las credenciales');
+				}
+
+				// Esperar si es requerido
 				if (requireWaiting) {
 					const waitTime = this.getNodeParameter('wait_time', i) as number;
 					await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
@@ -176,7 +190,9 @@ export class ChatNodoWhatsApp implements INodeType {
 				let response: any = null;
 				let attempt = 0;
 				let success = false;
+				let lastError: any = null;
 
+				// Reintentos
 				while (attempt < tries && !success) {
 					attempt++;
 
@@ -203,30 +219,39 @@ export class ChatNodoWhatsApp implements INodeType {
 
 						success = true;
 
-					} catch (error) {
-						if (attempt >= tries) {
-							throw error;
+					} catch (error: any) {
+						lastError = error;
+
+						if (attempt < tries) {
+							// Esperar antes de reintentar
+							await new Promise(resolve => setTimeout(resolve, messageWaitTime * 1000));
 						}
-						await new Promise(resolve => setTimeout(resolve, messageWaitTime * 1000));
 					}
+				}
+
+				if (!success) {
+					throw lastError || new Error('No se pudo enviar el mensaje después de todos los intentos');
 				}
 
 				returnData.push({
 					json: {
-						success: success,
+						success: true,
 						attempt: attempt,
 						operation: operation,
-						response: response || 'No response',
+						message_id: response?.messages?.[0]?.id || null,
+						recipient: recipientPhone,
 						timestamp: new Date().toISOString(),
+						response: response,
 					},
 				});
 
-			} catch (error) {
+			} catch (error: any) {
 				if (this.continueOnFail()) {
 					returnData.push({
 						json: {
-							error: error.message,
+							error: error.message || 'Error desconocido',
 							success: false,
+							timestamp: new Date().toISOString(),
 						},
 					});
 					continue;
